@@ -1,0 +1,78 @@
+<html lang="de">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="style.css">
+  <title>DS18B20 Temperatur</title>
+  <script>
+    function renew() {
+      fetch('/sensors').then(function (response) {
+        return response.json();
+      }).then(function (text) {
+        var elem = document.querySelector('#wert');
+        text != '-127.00' ? elem.innerHTML = text.replace(".", ",") + '°C' : elem.innerHTML = 'Fehler';
+      });
+    }
+    document.addEventListener('DOMContentLoaded', renew);
+    setInterval(renew, 1000);
+  </script>
+  <style>
+    body {
+      padding: 10px;
+      font-size: 3em;
+      background-image: url('hydraulik_web.png');
+      background-repeat: no-repeat;
+      background-size: cover;
+    }
+
+    main {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: black;
+      width: 280px;
+      height: 100px;
+      padding: 0.2em;
+      border: .15em solid #aeaeab;
+      box-shadow: 5px 10px 5px rgba(0, 0, 0, 0.7);
+      border-radius: .2em;
+    }
+
+    span {
+      color: #02fc07;
+      position: relative;
+      top: 0.5em;
+      left: .3em;
+      letter-spacing: .1em;
+      font-weight: bold
+    }
+  </style>
+</head>
+
+<body>
+  <main>
+    <span id='wert'></span>
+  </main>
+</body>
+
+</html>
+
+
+
+
+
+
+<!-- 
+
+<!DOCTYPE html>
+<html>
+<body>
+ 
+<p>Dies ist eine Beispiel, wie sich eine HTML-Seite und eine Bild aus dem Dateisystem des ESP-Flash laden l&auml;sst:</p>
+
+<img src="\hydraulik_web.png" alt="Bild aus dem ESP8266 Flashspeicher" width="1024" height="611">
+
+</body>
+</html>
+ -->

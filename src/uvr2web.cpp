@@ -14,6 +14,7 @@
 #include "sdo.h"
 #include "od.h"
 #include "co_time.h"
+#include "co_server.h"
 
 #define STASSID "Wunderland"
 #define STAPSK "S0nja_1986"
@@ -31,14 +32,8 @@ char heart_beat_active = 0;
 char sync_with_hass = 1;
 char pdo_transmit_active = 1;
 char time_producer = 1;
-char canopen_state = INITIALIZATION, sdo_message_type, state_changed = 1, sdo_toggle;
 unsigned int hb_time = 0, producer_heart_beat = 1000, hass_sync_time = 0, hass_sync_intervall = 3000,
              pdo_time = 0, pdo_intervall = 1000, time_message_time = 0, time_message_intervall = 6000;
-char data_buffer[CANOPEN_MAX_DATA_BUFFER_LENGTH];
-unsigned char od_sub_index;
-int od_index, odindex;
-char number_of_segments, counter = 0;
-char od_data_length;
 
 void setup()
 {
@@ -160,318 +155,68 @@ void loop()
       }
     }
 
-    uint16_t cob_id = frame.id & 0x780;
+    handleCOServer(frame);
 
-    switch (cob_id)
+    if (lastCmd == "connect")
     {
 
-    case 0x0:
+      connect(CANOPEN_NODE_ID);
 
-      debugV("Broadcast");
+      Debug.clearLastCommand();
+    }
 
-      break;
-
-    case RPDO_2_MESSAGE:
+    if (lastCmd == "disconnect")
     {
-      can_frame rframe;
-      rframe.extended = 0;
-      rframe.dlc = 8;
-      rframe.id = RPDO_2_MESSAGE + CANOPEN_NODE_ID;
 
-      if ((frame.data[0] & 0x80) == 0x80 && (frame.data[0] & 0x7F) == CANOPEN_NODE_ID)
-      {
+      disconnect(CANOPEN_NODE_ID);
 
-        byte client_id = frame.id & 0x3F;
-
-        rframe.data[0] = 0x80 | client_id;
-        rframe.data[1] = 0x80;
-        rframe.data[2] = 0x12;
-        rframe.data[3] = 0x01;
-        rframe.data[4] = 0x40 + client_id;
-        rframe.data[5] = 0x06;
-        rframe.data[6] = 0x00;
-
-        if (frame.data[1] == 0x00 &&
-            frame.data[2] == 0x1F &&
-            frame.data[3] == 0x00 &&
-            frame.data[4] == CANOPEN_NODE_ID &&
-            frame.data[5] <= 0x3f &&
-            frame.data[6] == 0x80 &&
-            frame.data[7] == 0x12)
-        {
-
-          rframe.data[7] = 0x00; //0x80 if deny
-
-          can_send_frame(rframe);
-        }
-
-        else if (frame.data[1] == 0x01 &&
-                 frame.data[2] == 0x1F &&
-                 frame.data[3] == 0x00 &&
-                 frame.data[5] <= 0x3f &&
-                 frame.data[6] == 0x80 &&
-                 frame.data[7] == 0x12)
-        {
-          if (frame.data[4] == CANOPEN_NODE_ID)
-          {
-
-            rframe.data[7] = 0x80;
-            can_send_frame(rframe);
-          }
-        }
-      }
+      Debug.clearLastCommand();
     }
-    break;
 
-    case RSDO_MESSAGE:
+    if (lastCmd == "time")
     {
-      can_frame rframe;
-      byte client_id = frame.id & 0x3F;
-      rframe.id = SSDOServerToClient2 + client_id;
-      rframe.extended = 0;
-      rframe.dlc = 8;
+      sendCOTimestamp();
 
-      byte command = frame.data[0];
-      byte ccs = command & 0xE0;
-      rframe.data[0] = INITIATE_SDO_UPLOAD_REQUEST | TRANSFER_SIZE_INDICATED;
-
-      switch (ccs)
-      {
-
-      case INITIATE_SDO_UPLOAD_REQUEST:
-      {
-        od_index = frame.data[1] | (frame.data[2] << 8);
-        od_sub_index = frame.data[3];
-        odindex = od_find_index(od_index);
-        if (odindex != -1)
-        {
-          od_data_length = od_find_data_length(odindex, od_sub_index);
-          debugV("len: %i", od_data_length);
-          if (od_data_length > 0)
-          {
-            od_read_data(odindex, od_sub_index, data_buffer, od_data_length);
-
-            if (od_data_length <= 4)
-            {
-              debugV("RSDO Expedited upload for 0x%X:%d", od_index, od_sub_index);
-              rframe.data[0] |= EXPEDITED_UPLOAD;
-              rframe.data[0] |= (4 - od_data_length) << 2;
-              rframe.data[1] = frame.data[1];
-              rframe.data[2] = frame.data[2];
-              rframe.data[3] = frame.data[3];
-              rframe.data[4] = 0x00;
-              rframe.data[5] = 0x0;
-              rframe.data[6] = 0x0;
-              rframe.data[7] = 0x0;
-
-              for (int i = 0; i < od_data_length; i++)
-              {
-                rframe.data[i + 4] = data_buffer[i];
-              }
-              can_send_frame(rframe);
-            }
-            else
-            {
-              if (od_data_length > 4) //if data is more than 4 bytes do segmented transfer
-
-              {
-                counter = 0;
-                sdo_toggle = 0;
-                if (od_data_length % 7 == 0)
-                {
-                  number_of_segments = (od_data_length / 7); //no. of segments = data length/7 as we can tx only 7 bytes of data in segmented tx.
-                }
-                else
-                {
-                  number_of_segments = (od_data_length / 7) + 1;
-                }
-                debugV("Segmnents: %i", number_of_segments);
-                sdo_initiate_upload_response(od_index, od_sub_index, od_data_length, rframe);
-              }
-            }
-          }
-        }
-      }
-      break;
-
-      case INITIATE_SEGMENT_UPLOAD_REQUEST:
-        debugV("OD Len: %i ", od_data_length);
-        debugV("Seg. No.: %i ", number_of_segments);
-        debugV("Counter: %i: ", counter);
-
-        if (counter != number_of_segments)
-        {
-          debugV("Toggle Bit: %x", sdo_toggle);
-
-          if (((irq_frm.data[0] >> 4) & 0x01) == sdo_toggle) //check sdo toggle bit is correct or not, starting with 0;
-
-          {
-            sdo_upload_segmented_data(sdo_toggle, od_data_length, data_buffer, counter, rframe);
-            sdo_toggle = !sdo_toggle;
-            debugV("Toggle Bit: %x", sdo_toggle);
-            counter++;
-            debugV("Counter: %i", counter);
-          }
-          else
-          {
-            sdo_send_abort_code(od_index, od_sub_index, SDO_TOGGLE_BIT_NOT_ALTERED);
-            debugV("Error Toggle Bit");
-          }
-
-        } //end if
-        else
-        {
-          debugV("Number of Segments exceeded");
-          delay(10000);
-        }
-        break;
-
-      case NON_EXPEDITED_DWNLD_REQUEST:
-
-        break;
-
-      case REQUEST_SEGMENT_DOWNLOAD:
-
-        break;
-
-      case REQUEST_BLOCK_UPLOAD:
-
-        break;
-
-      case REQUEST_BLOCK_DOWNLOAD:
-
-        break;
-
-      case SDO_REQUEST_ABORT:
-
-        break;
-      }
+      Debug.clearLastCommand();
     }
-    break;
 
-    case TPDO_3_MESSAGE:
-    {
-      can_frame rframe;
-
-      rframe.id = TPDO_3_MESSAGE + CANOPEN_NODE_ID;
-      rframe.extended = 0;
-      rframe.dlc = 8;
-
-      if (frame.data[0] == (0x80 | CANOPEN_NODE_ID) &&
-          frame.data[4] == 0x1)
-      {
-
-        od_index = frame.data[1] | (frame.data[2] << 8);
-        od_sub_index = frame.data[3];
-        odindex = od_find_index(od_index);
-        if (odindex != -1)
-        {
-          int len = od_find_data_length(odindex, od_sub_index);
-
-          if (len > 0)
-          {
-            od_read_data(odindex, od_sub_index, data_buffer, len);
-
-            if (len <= 4)
-            {
-              debugV("TPDO Expedited upload for 0x%X:%d", od_index, od_sub_index);
-              rframe.data[0] = CANOPEN_NODE_ID;
-              rframe.data[1] = frame.data[1];
-              rframe.data[2] = frame.data[2];
-              rframe.data[3] = frame.data[3];
-              rframe.data[4] = 0x0;
-              rframe.data[5] = 0x0;
-              rframe.data[6] = 0x0;
-              rframe.data[7] = 0x1;
-              for (int i = 0; i < len; i++)
-              {
-                rframe.data[i + 4] = data_buffer[i];
-              }
-              can_send_frame(rframe);
-            }
-          }
-        }
-      }
-    }
-    break;
-
-    case 0x700:
-    {
-      byte state = frame.data[0];
-      debugV("Hearbeat received");
-      if (state == 0x00)
-        canopen_state = INITIALIZATION;
-      else if (state == 0x04)
-        canopen_state = STOPPED;
-      else if (state == 0x05)
-        canopen_state = OPERATIONAL;
-      else if (state == 0x80)
-        canopen_state = PRE_OPERATIONAL;
-    }
-    break;
-    }
-  }
-
-  if (lastCmd == "connect")
-  {
-
-    connect(CANOPEN_NODE_ID);
-
-    Debug.clearLastCommand();
-  }
-
-  if (lastCmd == "disconnect")
-  {
-
-    disconnect(CANOPEN_NODE_ID);
-
-    Debug.clearLastCommand();
-  }
-
-  if (lastCmd == "time")
-  {
-    sendCOTimestamp();
-
-    Debug.clearLastCommand();
-  }
-
-  /*   if (lastCmd == "readinlet")
+    /*   if (lastCmd == "readinlet")
   {
 
     readInlets();
     Debug.clearLastCommand();
   } */
 
-  if (lastCmd == "readoutlet")
-  {
+    if (lastCmd == "readoutlet")
+    {
 
-    readOutlets();
-    Debug.clearLastCommand();
-  }
+      readOutlets();
+      Debug.clearLastCommand();
+    }
 
-  if (lastCmd == "readblock")
-  {
-    /*     Outlet hkpumpe = NewOutlet(0x0);
+    if (lastCmd == "readblock")
+    {
+      /*     Outlet hkpumpe = NewOutlet(0x0);
     readBlock(hkpumpe.Mode); */
 
-    Debug.clearLastCommand();
-  }
-  if (lastCmd == "clearcrash")
-  {
+      Debug.clearLastCommand();
+    }
+    if (lastCmd == "clearcrash")
+    {
 
-    SaveCrash.clear();
-    Debug.clearLastCommand();
-  }
+      SaveCrash.clear();
+      Debug.clearLastCommand();
+    }
 
-  if (lastCmd == "printcrash")
-  {
+    if (lastCmd == "printcrash")
+    {
 
-    SaveCrash.print(Debug);
+      SaveCrash.print(Debug);
 
-    Debug.clearLastCommand();
-  }
+      Debug.clearLastCommand();
+    }
 
-  /*  if (lastCmd == "testreadod")
+    /*  if (lastCmd == "testreadod")
   {
 
     od_sub_index = 0x0;
@@ -507,4 +252,5 @@ void loop()
 
     Debug.clearLastCommand();
   } */
+  }
 }

@@ -13,6 +13,7 @@
 #include "nmt.h"
 #include "sdo.h"
 #include "od.h"
+#include "co_time.h"
 
 #define STASSID "Wunderland"
 #define STAPSK "S0nja_1986"
@@ -29,8 +30,10 @@ can_frame r_frame;
 char heart_beat_active = 0;
 char sync_with_hass = 1;
 char pdo_transmit_active = 1;
+char time_producer = 1;
 char canopen_state = INITIALIZATION, sdo_message_type, state_changed = 1, sdo_toggle;
-unsigned int hb_time = 0, producer_heart_beat = 1000, hass_sync_time = 0, hass_sync_intervall = 3000, pdo_time = 0, pdo_intervall = 1000;
+unsigned int hb_time = 0, producer_heart_beat = 1000, hass_sync_time = 0, hass_sync_intervall = 3000,
+             pdo_time = 0, pdo_intervall = 1000, time_message_time = 0, time_message_intervall = 6000;
 char data_buffer[CANOPEN_MAX_DATA_BUFFER_LENGTH];
 unsigned char od_sub_index;
 int od_index, odindex;
@@ -77,9 +80,12 @@ void setup()
     // only do WiFi.begin if not already connected
     delay(500);
   }
+
+  time_producer = SetupTimefromNTP();
   setupHTTPClient();
 
   Web::start();
+
   if (canopen_state == INITIALIZATION) //Node initializes and send bootup messsgage and goes to pre operation state
   {
     heart_beat_active = 1;
@@ -115,20 +121,6 @@ void loop()
     }
   }
 
-  /*     if (pdo_transmit_active)
-  {
-    can_frame pdo_frame;
-    if (millis() > pdo_time + pdo_intervall * 10)
-    {
-      pdo_time = millis();
-      if ((canopen_state == PRE_OPERATIONAL) ||
-          (canopen_state == OPERATIONAL))
-       {
-        pdo_transmit_data(RPDO_0_COMMUNICATION_PARAMETER + 0, RPDO_0_MAPPING_PARAMETER +0);
-      }
-    }
-  } */
-
   if (sync_with_hass)
   {
 
@@ -136,6 +128,19 @@ void loop()
     {
       hass_sync_time = millis();
       getTemperatureToOD();
+    }
+  }
+
+  if (millis() > time_message_time + time_message_intervall * 10)
+  {
+    if (time_producer)
+    {
+      time_message_time = millis();
+      sendCOTimestamp();
+    }
+    else
+    {
+      time_producer = SetupTimefromNTP();
     }
   }
 
@@ -423,9 +428,9 @@ void loop()
     Debug.clearLastCommand();
   }
 
-  if (lastCmd == "gettime")
+  if (lastCmd == "time")
   {
-    getTimefromNTP();
+    sendCOTimestamp();
 
     Debug.clearLastCommand();
   }
@@ -446,7 +451,7 @@ void loop()
 
   if (lastCmd == "readblock")
   {
-/*     Outlet hkpumpe = NewOutlet(0x0);
+    /*     Outlet hkpumpe = NewOutlet(0x0);
     readBlock(hkpumpe.Mode); */
 
     Debug.clearLastCommand();

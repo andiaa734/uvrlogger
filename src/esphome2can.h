@@ -16,7 +16,6 @@ extern RemoteDebug Debug;
 
 DynamicJsonDocument getRoomTemperature();
 void setupHTTPClient();
-void getTimefromNTP();
 void getTemperatureToOD();
 
 

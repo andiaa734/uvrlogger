@@ -16,25 +16,7 @@ void setupHTTPClient()
     WiFiClientSecure client;
 }
 
-void getTimefromNTP()
-{
 
-    configTime(3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
-
-    debugV("Waiting for NTP time sync: ");
-    time_t now = time(nullptr);
-    while (now < 8 * 3600 * 2)
-    {
-        delay(500);
-
-        now = time(nullptr);
-    }
-
-    struct tm timeinfo;
-    gmtime_r(&now, &timeinfo);
-    debugV("Current time: ");
-    debugV("%s", asctime(&timeinfo));
-}
 
 DynamicJsonDocument getRoomTemperature()
 {

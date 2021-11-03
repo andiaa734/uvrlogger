@@ -18,8 +18,8 @@
 #define STASSID "Wunderland"
 #define STAPSK "S0nja_1986"
 
-const char *ssid = "Wunderland";
-const char *password = "S0nja_1986";
+const char *ssid = "sid";
+const char *password = "secret";
 const char *HOST_NAME = "UVRLOG";
 RemoteDebug Debug;
 EspSaveCrash SaveCrash;

@@ -1,5 +1,5 @@
-#ifndef WEB_H
-#define WEB_H
+#ifndef JSON_API_H
+#define JSON_API_H
 
 #include <ESP8266WebServer.h>
 #include "ArduinoJson.h"
@@ -13,17 +13,11 @@
  * Elias Kuiter (2018)
  */
 
-namespace Web
+namespace JsonAPI
 {
 
-  void start(); // stellt eine Internetverbindung her
-  void handleClient();
-  void handleRoot();
-  void handleForm();
-  void sendJSON();
-  void handleDisconnect();
-  void datatojson();
-  void readJSON();
+  String sendJsonData();
+  int readJsonData(String json_data);
   std::string utf16_to_utf8(std::u16string const &s);
 
 }

@@ -8,7 +8,7 @@ time_t now;
 bool SetupTimefromNTP()
 {
 
-    configTime(3 * 3600,0, "pool.ntp.org", "time.nist.gov");
+    configTime(4 * 3600,0, "pool.ntp.org", "time.nist.gov");
 
     int max_try = 0;
 
@@ -37,7 +37,7 @@ timestamp co_time()
     unsigned long timediff = now - OFFSET;
 
     div_t co_timestamp;
-    co_timestamp = div(timediff, ONE_DAY);
+    co_timestamp = div(timediff + 3600, ONE_DAY);
 
     cotime.days = co_timestamp.quot;
     cotime.ms_since_mn = co_timestamp.rem * 1000;
@@ -55,9 +55,6 @@ void sendCOTimestamp()
 
     for (int i = 0; i < 6; i++){
             timeframe.data[i] = *((char*)(&curTime) + i); 
-
-            debugV("Timestamp[%i]: %X", i , timeframe.data[i]);
-
     }
     
     can_send_frame(timeframe);

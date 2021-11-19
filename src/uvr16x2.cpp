@@ -5,9 +5,6 @@
 #include <codecvt>
 #include <string>
 #include <locale>
-#include "crc16.h"
-
-Crc16 crc16;
 
 ObjectIndex NewObjectIndex(uint16 index, uint8 subIndex)
 {
@@ -19,6 +16,29 @@ ObjectIndex NewObjectIndex(uint16 index, uint8 subIndex)
     newOI.SubIndex = subIndex;
 
     return newOI;
+}
+
+Setting NewSettings(uint8 subIndex)
+{
+
+    Setting newSetting;
+
+    newSetting.OperationMode = NewObjectIndex(0x283B, 0x01);
+    newSetting.WaterPriority = NewObjectIndex(0x2414, 0x00);
+    newSetting.WaterTargetTemperature = NewObjectIndex(0x2414, 0x03);
+
+    return newSetting;
+}
+
+Variable NewVariables(uint8 subIndex)
+{
+
+    Variable newVariable;
+
+    newVariable.FlowTargetTemperature = NewObjectIndex(0x2D01, 0x01);
+    newVariable.Operation = NewObjectIndex(0x2D0F, 0x01);
+
+    return newVariable;
 }
 
 Inlet NewInlet(uint8 subIndex)
@@ -82,25 +102,23 @@ void connect(uint8_t clientID)
     can_send_frame(frm, 0x401);
 
     wait(0x401, rframe);
+    
 
-    if (rframe.data[0] != 0x80 + byte(CANOPEN_NODE_ID))
-    {
-        debugV("Invalid MPDO address %x", rframe.data[0]);
-    }
+        if (rframe.data[0] != 0x80 + byte(CANOPEN_NODE_ID))
+        {
+            debugV("Invalid MPDO address %x", rframe.data[0]);
+        }
 
-    else if (rframe.data[4] != 0x40 + byte(CANOPEN_NODE_ID) || rframe.data[5] != 0x06)
-    {
-        debugV("Invalid 0x640 + client id %X %X", rframe.data[5], rframe.data[4]);
-    }
+        else if (rframe.data[4] != 0x40 + byte(CANOPEN_NODE_ID) || rframe.data[5] != 0x06)
+        {
+            debugV("Invalid 0x640 + client id %X %X", rframe.data[5], rframe.data[4]);
+        }
 
-    else if (rframe.data[7] != 0x00)
-    {
-        debugV("Invalid byte 7 %X", rframe.data[7]);
-    }
-    else
-    {
-        debugV("Success");
-    }
+        else if (rframe.data[7] != 0x00)
+        {
+            debugV("Invalid byte 7 %X", rframe.data[7]);
+        }
+
 }
 
 void disconnect(uint8_t clientID)
@@ -175,61 +193,56 @@ void readHeatmeter(Heatmeter *heatmeter, std::string *descr, float *tflow, int *
 
     byte length;
     byte data_buffer[CANOPEN_MAX_DATA_BUFFER_LENGTH];
+    int err = 1;
 
-    //memset(data_buffer, 0, sizeof(data_buffer));
     getObject(heatmeter->Description, data_buffer, &length);
 
     *descr = readStringfromIndex(data_buffer, &length);
 
-    //memset(data_buffer, 0, sizeof(data_buffer));
     getObject(heatmeter->Flowtemperatur, data_buffer, &length);
+
     *tflow = readfloatfromIndex(data_buffer, &length);
     *tfunit = (int)data_buffer[1];
 
-    //memset(data_buffer, 0, sizeof(data_buffer));
     getObject(heatmeter->Returntemperatur, data_buffer, &length);
+
     *treturn = readfloatfromIndex(data_buffer, &length);
     *trunit = (int)data_buffer[1];
 
-    //memset(data_buffer, 0, sizeof(data_buffer));
     getObject(heatmeter->Flow, data_buffer, &length);
+
     *flow = readfloatfromIndex(data_buffer, &length);
     *funit = (int)data_buffer[1];
 
-    //memset(data_buffer, 0, sizeof(data_buffer));
     getObject(heatmeter->Power, data_buffer, &length);
+
     *power = readfloatfromIndex(data_buffer, &length);
     *upower = (int)data_buffer[1];
 
-    //memset(data_buffer, 0, sizeof(data_buffer));
     getObject(heatmeter->PowerTotal, data_buffer, &length);
+
     *powertotal = readfloatfromIndex(data_buffer, &length);
     *ptunit = (int)data_buffer[1];
 
-    //memset(data_buffer, 0, sizeof(data_buffer));
     getObject(heatmeter->State, data_buffer, &length);
+
     *state = readStringfromIndex(data_buffer, &length);
+
 }
 
 void readInlet(Inlet *inlet, std::string *descr, int *state, float *val, int *unit)
 {
     byte length;
     byte data_buffer[CANOPEN_MAX_DATA_BUFFER_LENGTH];
+    int err = 1;
 
-    //memset(data_buffer, 0, sizeof(data_buffer));
     getObject(inlet->Description, data_buffer, &length);
 
     if (data_buffer[0] != 0x80)
     {
         *descr = readStringfromIndex(data_buffer, &length);
     }
-    else
-    {
-        *descr = "Unbenutzt";
-        debugV("Error received");
-    }
 
-    //memset(data_buffer, 0, sizeof(data_buffer));
     getObject(inlet->Value, data_buffer, &length);
 
     if (data_buffer[0] != 0x80)
@@ -252,59 +265,37 @@ void readInlet(Inlet *inlet, std::string *descr, int *state, float *val, int *un
             break;
         }
     }
-    else
-    {
-        debugV("Error received");
-
-        *unit = 0;
-        *val = 0;
-    }
-
-    //memset(data_buffer, 0, sizeof(data_buffer));
 
     getObject(inlet->State, data_buffer, &length);
+
     if (data_buffer[0] != 0x80)
     {
         *state = readintfromIndex(data_buffer, &length);
     }
-    else
-    {
-        *state = 0;
-    }
+
 }
 
-void readOutlet(Outlet *outlet, std::string *descr, int *imode, std::string *mode, int *state)
+void readOutlet(Outlet *outlet, std::string *descr, int *imode, std::string *mode, int *state, int *unit)
 {
 
     byte length;
     byte data_buffer[CANOPEN_MAX_DATA_BUFFER_LENGTH];
+    int err = 1;
 
-    //memset(data_buffer, 0, sizeof(data_buffer));
     getObject(outlet->Description, data_buffer, &length);
 
     if (data_buffer[0] != 0x80)
     {
         *descr = readStringfromIndex(data_buffer, &length);
     }
-    else
-    {
-        *descr = "Unbenutzt";
-        debugV("Error received");
-    }
-    //memset(data_buffer, 0, sizeof(data_buffer));
-    readBlock(outlet->Mode, data_buffer, &length);
+
+    getObject(outlet->Mode, data_buffer, &length);
 
     if (data_buffer[0] != 0x80)
     {
         *mode = readStringfromIndex(data_buffer, &length);
-        *imode = data_buffer[1];
     }
-    else
-    {
-        *mode = "na";
-        *imode = 99;
-    }
-    //memset(data_buffer, 0, sizeof(data_buffer));
+
     getObject(outlet->State, data_buffer, &length);
 
     if (data_buffer[0] != 0x80)
@@ -312,36 +303,27 @@ void readOutlet(Outlet *outlet, std::string *descr, int *imode, std::string *mod
     else
         *state = 0;
 
-    //*unit = (int)data_buffer[1];
+    *unit = (int)data_buffer[1];
+
 }
 
 void getObject(ObjectIndex index, byte *data_buffer, byte *len)
 {
 
-    can_frame frame;
-    can_frame rframe;
-
-    frame.id = SSDOClientToServer2;
-    frame.dlc = 8;
-    frame.data[0] = byte(INITIATE_SDO_UPLOAD_REQUEST);
-    frame.data[1] = index.idx.b0;
-    frame.data[2] = index.idx.b1;
-    frame.data[3] = index.SubIndex;
-    frame.data[4] = 0x0;
-    frame.data[5] = 0x0;
-    frame.data[6] = 0x0;
-    frame.data[7] = 0x0;
-
-    can_send_frame(frame, (SSDOServerToClient2 + CANOPEN_NODE_ID));
-    wait((SSDOServerToClient2 + CANOPEN_NODE_ID), rframe);
-
-    char sdo_message_type = rframe.data[0];
+    char sdo_message_type;
     bool segmented_rx_last_frame = false;
     byte no_of_bytes, sdo_toggle, count;
+    can_frame rframe;
 
     segmented_rx_last_frame = false;
     sdo_toggle = 0;
     count = 0;
+    int err = 0;
+
+    sdo_send_upload_request(index);
+    wait((SSDOServerToClient2 + CANOPEN_NODE_ID), rframe);
+
+    sdo_message_type = rframe.data[0];
 
     switch (sdo_message_type)
     {
@@ -352,6 +334,7 @@ void getObject(ObjectIndex index, byte *data_buffer, byte *len)
         debugV("Databuffer: %x", data_buffer[0]);
         data_buffer[0] = 0x80;
         *len = 0;
+        err = 0;
         break;
 
     case SDO_RESPONSE_READ_8BIT:
@@ -368,7 +351,7 @@ void getObject(ObjectIndex index, byte *data_buffer, byte *len)
         }
 
         *len = no_of_bytes;
-
+        err = 1;
         break;
 
     case BEGIN_SDO_DOWNLOAD:
@@ -379,14 +362,7 @@ void getObject(ObjectIndex index, byte *data_buffer, byte *len)
         {
             wait(SSDOServerToClient2 + CANOPEN_NODE_ID, rframe);
 
-            if (rframe.data[0] == EMERGENCY_MESSAGE)
-            {
-
-                debugV("Error %x %x", rframe.data[7], rframe.data[6]);
-                break;
-            }
-
-            else if (((rframe.data[0] >> 4) & 0x01) == sdo_toggle) // check for sdo toggle bit
+            if (((rframe.data[0] >> 4) & 0x01) == sdo_toggle) // check for sdo toggle bit
             {
                 // debugV("check for sdo toggle bit");
 
@@ -405,7 +381,7 @@ void getObject(ObjectIndex index, byte *data_buffer, byte *len)
                     }
 
                     *len = count + temp_counter;
-
+                    err = 1;
                     break;
                 }
 
@@ -429,6 +405,7 @@ void getObject(ObjectIndex index, byte *data_buffer, byte *len)
             {
                 // sdo_send_abort_code(inlet->Description.idx.b0, inlet->Description.SubIndex, SDO_TOGGLE_BIT_NOT_ALTERED);
                 segmented_rx_last_frame = true;
+                err = 0;
                 debugV("SDO_TOGGLE_BIT_NOT_ALTERED");
             }
             // comm_timeout_time = millis();
@@ -438,6 +415,7 @@ void getObject(ObjectIndex index, byte *data_buffer, byte *len)
 
     default:
         debugV("Protokoll Error");
+        err = 0;
         break;
     }
 }
@@ -568,8 +546,9 @@ void readOutlets()
         std::string descr = "", mode = "";
         int imode = 0;
         int state = 0;
+        int unit = 0;
 
-        readOutlet(ptr, &descr, &imode, &mode, &state);
+        readOutlet(ptr, &descr, &imode, &mode, &state, &unit);
 
         if (descr == "")
         {
@@ -600,6 +579,7 @@ void wait(uint32 Id, can_frame &rframe)
 
             rframe = irq_frm;
             irq_frm.id = 0;
+            debugV("Response Frame ID: %X", rframe.id);
 
             for (int i = 0; i < rframe.dlc; i++)
             {
@@ -610,7 +590,6 @@ void wait(uint32 Id, can_frame &rframe)
         }
         yield();
     }
-    return;
 }
 
 void readBlock(ObjectIndex index, byte *data_buffer, byte *len)
@@ -619,28 +598,16 @@ void readBlock(ObjectIndex index, byte *data_buffer, byte *len)
     uint16_t server_crc;
     //int len = 0;
     char count = 0;
-    can_frame frame;
     can_frame rframe;
 
-    frame.id = SSDOClientToServer1;
-    frame.dlc = 8;
-    frame.data[0] = REQUEST_BLOCK_UPLOAD | INITIATE_BLOCK_TRANSFER;
-    frame.data[0] |= CRC_SUPPORTED;
-    frame.data[1] = index.idx.b0;
-    frame.data[2] = index.idx.b1;
-    frame.data[3] = index.SubIndex;
-    frame.data[4] = MAX_BLOCK_SIZE;
-    frame.data[5] = 0x0;
-    frame.data[6] = 0x0;
-    frame.data[7] = 0x0;
+    sdo_send_block_upload_request(index);
+    wait((SSDOServerToClient2 + CANOPEN_NODE_ID), rframe);
 
-    can_send_frame(frame);
-
-    wait((SSDOServerToClient1), rframe);
     debugV("Response received: %X", rframe.id);
-    Debug.handle();
+
     char res_command = rframe.data[0];
-    char blksize;
+    char blksize = 0;
+
     ObjectIndex res_index;
 
     res_index.idx.b0 = rframe.data[1];
@@ -668,39 +635,20 @@ void readBlock(ObjectIndex index, byte *data_buffer, byte *len)
 
     bool crc_supported = (res_command & CRC_SUPPORTED);
 
-    frame.data[0] = REQUEST_BLOCK_UPLOAD | START_BLOCK_UPLOAD;
-    frame.data[1] = 0x0;
-    frame.data[2] = 0x0;
-    frame.data[3] = 0x0;
-    frame.data[4] = 0x0;
-
-    can_send_frame(frame);
+    sdo_initate_block_upload();
 
     char ackseq = 0;
 
     unsigned long end_time = millis();
+    can_frame datafrm;
 
     while (millis() - end_time <= RESPONSE_TIMEOUT + 5000)
     {
-        can_frame datafrm;
-        wait((SSDOServerToClient1), datafrm);
-        debugV("Response received: %X", datafrm.id);
-        Debug.handle();
+        wait((SSDOServerToClient2 + CANOPEN_NODE_ID), datafrm);
 
         res_command = datafrm.data[0];
 
         char seqno = res_command & 0x7F;
-
-        if (seqno == ackseq + 1)
-        {
-            ackseq = seqno;
-        }
-        else
-        {
-            //Wrong sequence number
-            retransmit(datafrm, ackseq, blksize);
-            res_command = datafrm.data[0];
-        }
 
         if (res_command & NO_MORE_BLOCKS)
         {
@@ -722,11 +670,44 @@ void readBlock(ObjectIndex index, byte *data_buffer, byte *len)
                 debugV("Data[%i] %X", i, data_buffer[i]);
             }
 
-            break;
+            debugV("ackseq: %X", ackseq);
+
+            if (seqno == ackseq + 1)
+            {
+                ackseq = seqno;
+            }
+
+            sdo_send_ack_block(ackseq);
+            wait((SSDOServerToClient2 + CANOPEN_NODE_ID), datafrm);
+
+            if (*len == blksize)
+            {
+                ackseq = 0;
+            }
+
+            uint16_t crc = crc16.crcarc(data_buffer, 0, *len);
+            res_command = datafrm.data[0];
+            server_crc = datafrm.data[1];
+            server_crc |= datafrm.data[2] << 8;
+            debugV("CRC:");
+            debugV("Server CRC: %X", server_crc);
+            debugV("Client CRC: %X", crc);
+
+            if (server_crc == crc)
+            {
+                sdo_end_block_upload();
+                break;
+            }
+            else
+            {
+                debugV("CRC Error");
+                break;
+            }
         }
 
         else
         {
+
             data_buffer[0 + (seqno - 1) * 7] = datafrm.data[1];
             data_buffer[1 + (seqno - 1) * 7] = datafrm.data[2];
             data_buffer[2 + (seqno - 1) * 7] = datafrm.data[3];
@@ -737,78 +718,15 @@ void readBlock(ObjectIndex index, byte *data_buffer, byte *len)
             count += 7;
         }
 
+        if (seqno == ackseq + 1)
+        {
+            ackseq = seqno;
+        }
+        else
+        {
+            sdo_send_ack_block(seqno);
+        }
     } //while
-
-    ack_block(frame, ackseq, blksize);
-    wait((SSDOServerToClient1), rframe);
-    debugV("Response received: %X", rframe.id);
-    Debug.handle();
-
-    uint16_t crc = crc16.crcarc(data_buffer, 0, *len);
-    res_command = rframe.data[0];
-    server_crc = rframe.data[1];
-    server_crc |= rframe.data[2] << 8;
-    debugV("CRC:");
-    debugV("Server CRC: %X", server_crc);
-    debugV("Client CRC: %X", crc);
-
-    if (server_crc == crc)
-    {
-        end_upload(frame);
-    }
-}
-
-void end_upload(can_frame frame)
-{
-    frame.data[0] = REQUEST_BLOCK_UPLOAD | END_BLOCK_TRANSFER;
-    frame.data[1] = 0x0;
-    frame.data[2] = 0x0;
-    frame.data[3] = 0x0;
-    frame.data[4] = 0x0;
-    frame.data[5] = 0x0;
-    frame.data[6] = 0x0;
-    frame.data[7] = 0x0;
-
-    can_send_frame(frame);
-}
-
-void ack_block(can_frame &frame, char &ackseq, char &blksize)
-{
-
-    debugV("Blocksize: %i", blksize);
-    debugV("Sequences: %i", ackseq);
-
-    frame.data[0] = REQUEST_BLOCK_UPLOAD | BLOCK_TRANSFER_RESPONSE;
-    frame.data[1] = ackseq;
-    frame.data[2] = 0x0;
-    frame.data[3] = 0x0;
-    frame.data[4] = 0x0;
-    frame.data[5] = 0x0;
-    frame.data[6] = 0x0;
-    frame.data[7] = 0x0;
-    can_send_frame(frame);
-    if (ackseq == blksize)
-    {
-        ackseq = 0;
-    }
-}
-
-void retransmit(can_frame &frame, char &ackseq, char &blocksize)
-{
-
-    debugV("Only %d sequences were received. Requesting retransmission",
-           ackseq);
-    ack_block(frame, ackseq, blocksize);
-    wait(SSDOServerToClient1, frame);
-    char res_command = frame.data[0];
-    char seqno = res_command & 0x7F;
-
-    if (seqno == ackseq + 1)
-    {
-        //We should be back in sync
-        ackseq = seqno;
-    }
-    // return response
 }
 
 void writeBlock(ObjectIndex index, byte *data_buffer, int len)
@@ -818,20 +736,7 @@ void writeBlock(ObjectIndex index, byte *data_buffer, int len)
     can_frame frame;
     can_frame rframe;
 
-    frame.id = SSDOClientToServer2;
-    frame.dlc = 8;
-    frame.data[0] = REQUEST_BLOCK_DOWNLOAD | INITIATE_BLOCK_TRANSFER;
-    //frame.data[0] |= CRC_SUPPORTED;
-    frame.data[0] |= BLOCK_SIZE_SPECIFIED;
-    frame.data[1] = index.idx.b0;
-    frame.data[2] = index.idx.b1;
-    frame.data[3] = index.SubIndex;
-    frame.data[4] = 0x01;
-    frame.data[5] = 0x0;
-    frame.data[6] = 0x0;
-    frame.data[7] = 0x0;
-
-    can_send_frame(frame);
+    sdo_initate_block_download_request(index);
     wait((SSDOServerToClient2 + CANOPEN_NODE_ID), rframe);
     debugV("Response received: %X", rframe.id);
     Debug.handle();
@@ -956,8 +861,11 @@ void end_block_download(can_frame &frame)
     frame.data[0] = 0;
 }
 
-void setState(Outlet outlet, int state)
+void setState(ObjectIndex index, char *data_buffer, int len)
 {
+
+    char data_length = 7;
+    debugV("Index: %X", index.idx);
 
     connect(CANOPEN_NODE_ID);
 
@@ -969,37 +877,18 @@ void setState(Outlet outlet, int state)
     frame.extended = 0;
     frame.remote = 0;
 
-    char data_buffer[7];
+    uint16_t crc = crc16.crcarc((byte *)data_buffer, 0, len);
 
-switch (state){
+    data_buffer[len] = crc & 0xff;
+    data_buffer[len + 1] = (crc >> 8);
 
-    case 0:
-    data_buffer[0] = MODE_HAND_AUS;
-    break;
+    for (int i = len + 2; i < 7; i++)
+    {
+        data_buffer[i] = 0x00;
+    }
 
-    case 1:
-    data_buffer[0] = MODE_HAND_AN;
-    break;
-
-    case 2:
-    data_buffer[0] = MODE_AUTO;
-    break;
-}
- 
-
-    uint16_t crc = crc16.crcarc((byte *)data_buffer, 0, 1);
-
-    data_buffer[1] = crc & 0xff;
-    data_buffer[2] = (crc >> 8);
-
-    data_buffer[3] = 0x00;
-    data_buffer[4] = 0x00;
-    data_buffer[5] = 0x00;
-    data_buffer[6] = 0x00;
-
-    char data_length = sizeof(data_buffer) / sizeof(data_buffer[0]);
-
-    for (int i = 0; i < data_length; i++){
+    for (int i = 0; i < 7; i++)
+    {
 
         debugV("Final Databuffer[%i]: %X", i, data_buffer[i]);
     }
@@ -1017,7 +906,7 @@ switch (state){
         number_of_segments = (data_length / 7) + 1;
     }
 
-    sdo_initiate_download_request(outlet.Mode, data_length, frame);
+    sdo_initiate_download_request(index, data_length, frame);
     wait((SSDOServerToClient2 + CANOPEN_NODE_ID), rframe);
 
     char res_cmd = rframe.data[0];
@@ -1049,11 +938,10 @@ switch (state){
         }
         else
         {
-            sdo_send_abort_code(outlet.State.idx.to_uint16(), outlet.State.SubIndex, SDO_TOGGLE_BIT_NOT_ALTERED);
+            sdo_send_abort_code(index.idx.to_uint16(), index.SubIndex, SDO_TOGGLE_BIT_NOT_ALTERED);
             debugV("Error Toggle Bit");
             break;
         }
-
 
     } //end if
 }

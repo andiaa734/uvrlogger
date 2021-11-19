@@ -15,13 +15,15 @@
 #include "od.h"
 #include "co_time.h"
 #include "co_server.h"
+#include "crc16.h"
 
-#define STASSID "Wunderland"
-#define STAPSK "S0nja_1986"
 
-const char *ssid = "sid";
-const char *password = "secret";
+const char *ssid = "SECRET";
+const char *password = "TOPSECRET";
 const char *HOST_NAME = "UVRLOG";
+
+Crc16 crc16;
+
 RemoteDebug Debug;
 EspSaveCrash SaveCrash;
 
@@ -145,78 +147,71 @@ void loop()
     frame = irq_frm;
     irq_frm.id = 0;
 
-    debugV("Frame ID: %X", frame.id);
-    if (frame.id > 0)
-    {
-      for (int i = 0; i < frame.dlc; i++)
-      {
 
-        debugV("Data[%i]: %X", i, frame.data[i]);
-      }
-    }
 
     handleCOServer(frame);
+  }
+  
+  if (lastCmd == "connect")
+  {
 
-    if (lastCmd == "connect")
-    {
+    connect(CANOPEN_NODE_ID);
 
-      connect(CANOPEN_NODE_ID);
+    Debug.clearLastCommand();
+  }
 
-      Debug.clearLastCommand();
-    }
+  if (lastCmd == "disconnect")
+  {
 
-    if (lastCmd == "disconnect")
-    {
+    disconnect(CANOPEN_NODE_ID);
 
-      disconnect(CANOPEN_NODE_ID);
+    Debug.clearLastCommand();
+  }
 
-      Debug.clearLastCommand();
-    }
+  if (lastCmd == "time")
+  {
+    sendCOTimestamp();
 
-    if (lastCmd == "time")
-    {
-      sendCOTimestamp();
+    Debug.clearLastCommand();
+  }
 
-      Debug.clearLastCommand();
-    }
-
-    /*   if (lastCmd == "readinlet")
+  /*   if (lastCmd == "readinlet")
   {
 
     readInlets();
     Debug.clearLastCommand();
   } */
 
-    if (lastCmd == "readoutlet")
-    {
+  if (lastCmd == "readoutlet")
+  {
 
-      readOutlets();
-      Debug.clearLastCommand();
-    }
+    readOutlets();
+    Debug.clearLastCommand();
+  }
 
-    if (lastCmd == "readblock")
-    {
-      /*     Outlet hkpumpe = NewOutlet(0x0);
+  if (lastCmd == "readblock")
+  {
+    /*     Outlet hkpumpe = NewOutlet(0x0);
     readBlock(hkpumpe.Mode); */
 
-      Debug.clearLastCommand();
-    }
-    if (lastCmd == "clearcrash")
-    {
+    Debug.clearLastCommand();
+  }
+  if (lastCmd == "clearcrash")
+  {
 
-      SaveCrash.clear();
-      Debug.clearLastCommand();
-    }
+    SaveCrash.clear();
+    Debug.clearLastCommand();
+  }
 
-    if (lastCmd == "printcrash")
-    {
+  if (lastCmd == "printcrash")
+  {
 
-      SaveCrash.print(Debug);
+    SaveCrash.print(Debug);
 
-      Debug.clearLastCommand();
-    }
+    Debug.clearLastCommand();
+  }
 
-    /*  if (lastCmd == "testreadod")
+  /*  if (lastCmd == "testreadod")
   {
 
     od_sub_index = 0x0;
@@ -252,5 +247,4 @@ void loop()
 
     Debug.clearLastCommand();
   } */
-  }
 }

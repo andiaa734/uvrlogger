@@ -46,8 +46,8 @@ private:
   uint8_t _reflectOut;
   //Crc value
   uint16_t _crc;
-  uint8_t reflect(uint8_t data);
-  uint16_t reflect(uint16_t data);
+  inline uint8_t reflect(uint8_t data);
+  inline uint16_t reflect(uint16_t data);
 
 public:
   inline Crc16()

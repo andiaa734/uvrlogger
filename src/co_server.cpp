@@ -101,7 +101,6 @@ void handleCOServer(can_frame &frame)
             if (odindex != -1)
             {
                 od_data_length = od_find_data_length(odindex, od_sub_index);
-                debugV("len: %i", od_data_length);
                 if (od_data_length > 0)
                 {
                     od_read_data(odindex, od_sub_index, data_buffer, od_data_length);
@@ -109,7 +108,6 @@ void handleCOServer(can_frame &frame)
                     if (od_data_length <= 4)
                     {
 
-                        debugV("RSDO Expedited upload for 0x%X:%d", od_index, od_sub_index);
 
                         sdo_upload_expedited_data(od_index, od_sub_index, od_data_length, data_buffer);
                         /* rframe.data[0] |= EXPEDITED_UPLOAD;
@@ -143,7 +141,6 @@ void handleCOServer(can_frame &frame)
                             {
                                 number_of_segments = (od_data_length / 7) + 1;
                             }
-                            debugV("Segmnents: %i", number_of_segments);
                             sdo_initiate_upload_response(od_index, od_sub_index, od_data_length, rframe);
                         }
                     }
@@ -153,9 +150,9 @@ void handleCOServer(can_frame &frame)
         break;
 
         case INITIATE_SEGMENT_UPLOAD_REQUEST:
-            debugV("OD Len: %i ", od_data_length);
+/*             debugV("OD Len: %i ", od_data_length);
             debugV("Seg. No.: %i ", number_of_segments);
-            debugV("Counter: %i: ", counter);
+            debugV("Counter: %i: ", counter); */
 
             if (counter != number_of_segments)
             {
@@ -166,9 +163,7 @@ void handleCOServer(can_frame &frame)
                 {
                     sdo_upload_segmented_data(sdo_toggle, od_data_length, data_buffer, counter, rframe);
                     sdo_toggle = !sdo_toggle;
-                    debugV("Toggle Bit: %x", sdo_toggle);
                     counter++;
-                    debugV("Counter: %i", counter);
                 }
                 else
                 {
@@ -232,7 +227,6 @@ void handleCOServer(can_frame &frame)
 
                     if (len <= 4)
                     {
-                        debugV("TPDO Expedited upload for 0x%X:%d", od_index, od_sub_index);
                         rframe.data[0] = CANOPEN_NODE_ID;
                         rframe.data[1] = frame.data[1];
                         rframe.data[2] = frame.data[2];
@@ -256,7 +250,6 @@ void handleCOServer(can_frame &frame)
     case NMT_HEARTBEAT_MESSAGE:
     {
         byte state = frame.data[0];
-        debugV("Hearbeat received");
         if (state == 0x00)
             canopen_state = INITIALIZATION;
         else if (state == 0x04)
